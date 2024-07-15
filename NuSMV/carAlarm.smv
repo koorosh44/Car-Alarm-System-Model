@@ -1,0 +1,96 @@
+MODULE main
+VAR
+    armed : boolean;           -- Indicates if the car alarm system is armed
+    key_pressed : boolean;     -- Indicates if the key has been pressed
+    door_open : boolean;       -- Indicates if a door is open
+    window_open : boolean;     -- Indicates if a window is open
+    ignition_on : boolean;     -- Indicates if the ignition is on
+    unauthorized_access : boolean; -- Indicates if unauthorized access has been detected
+    disarm_command : boolean;  -- Indicates if a disarm command has been issued
+    alarm_active : boolean;    -- Indicates if the alarm is currently active
+    input : {none, keyPress, doorOpen, windowOpen, ignitionOn, unauthorizedAccess, disarmCommand}; -- Input variables
+
+ASSIGN
+    init(armed) := FALSE;
+    init(key_pressed) := FALSE;
+    init(door_open) := FALSE;
+    init(window_open) := FALSE;
+    init(ignition_on) := FALSE;
+    init(unauthorized_access) := FALSE;
+    init(disarm_command) := FALSE;
+    init(alarm_active) := FALSE;
+
+    next(armed) := case
+        key_pressed & !armed : TRUE;           -- Arm the system if key is pressed and it's not already armed
+        disarm_command : FALSE;                -- Disarm the system if disarm command is issued
+        TRUE : armed;                          -- Maintain the current state otherwise
+    esac;
+
+    next(alarm_active) := case
+        armed & unauthorized_access : TRUE;    -- Activate alarm if system is armed and unauthorized access is detected
+        disarm_command : FALSE;                -- Deactivate alarm if disarm command is issued
+        TRUE : alarm_active;                   -- Maintain the current state otherwise
+    esac;
+
+    next(door_open) := case
+        input = doorOpen : TRUE;               -- Open the door if doorOpen input is received
+        disarm_command : FALSE;                -- Close the door if disarm command is issued
+        TRUE : door_open;                      -- Maintain the current state otherwise
+    esac;
+
+    next(window_open) := case
+        input = windowOpen : TRUE;             -- Open the window if windowOpen input is received
+        disarm_command : FALSE;                -- Close the window if disarm command is issued
+        TRUE : window_open;                    -- Maintain the current state otherwise
+    esac;
+
+    next(ignition_on) := case
+        input = ignitionOn : TRUE;             -- Turn on ignition if ignitionOn input is received
+        disarm_command : FALSE;                -- Turn off ignition if disarm command is issued
+        TRUE : ignition_on;                    -- Maintain the current state otherwise
+    esac;
+
+    next(unauthorized_access) := case
+        input = unauthorizedAccess : TRUE;     -- Detect unauthorized access if unauthorizedAccess input is received
+        disarm_command : FALSE;                -- Reset unauthorized access if disarm command is issued
+        TRUE : unauthorized_access;            -- Maintain the current state otherwise
+    esac;
+
+    next(key_pressed) := case
+        input = keyPress : TRUE;               -- Set key_pressed to TRUE if keyPress input is received
+        disarm_command : FALSE;                -- Reset key_pressed if disarm command is issued
+        TRUE : key_pressed;                    -- Maintain the current state otherwise
+    esac;
+
+    next(disarm_command) := case
+        input = disarmCommand : TRUE;          -- Set disarm_command to TRUE if disarmCommand input is received
+        TRUE : disarm_command;                 -- Maintain the current state otherwise
+    esac;
+
+-- LTL Properties
+
+-- The system can only be armed if the key is pressed.
+LTLSPEC !armed | key_pressed
+
+-- If unauthorized access is detected while the system is armed, the alarm will be activated.
+LTLSPEC !armed | !unauthorized_access | alarm_active
+
+-- If a disarm command is issued, the system will be disarmed.
+LTLSPEC disarm_command -> X(!armed)
+
+-- The alarm should not activate if the system is disarmed.
+LTLSPEC !armed -> !alarm_active
+
+-- Additional LTL Properties
+
+-- The system will only activate the alarm if it is armed and unauthorized access is detected.
+LTLSPEC G (armed & unauthorized_access -> F alarm_active)
+
+-- If the system is armed, it will eventually detect unauthorized access or receive a disarm command.
+LTLSPEC G (armed -> F (unauthorized_access | disarm_command))
+
+-- If the ignition is on, then it must be after a key press.
+LTLSPEC G (ignition_on -> X key_pressed)
+
+-- The system will not remain armed indefinitely without a key press.
+LTLSPEC G (armed -> F key_pressed)
